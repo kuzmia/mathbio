@@ -1,0 +1,349 @@
+\documentclass[12pt]{article}
+
+\input{4mbapreamble}
+\input{4mba2q}
+
+\usepackage[shortlabels]{enumitem}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% FANCY HEADER AND FOOTER STUFF %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{fancyhdr,lastpage}
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer parameters
+%%%\lhead{Student Name: \theblank{4cm}}
+%%%\chead{}
+%%%\rhead{Student Number: \theblank{3cm}}
+%%%\lfoot{\small\bfseries\ifnum\thepage<\pageref{LastPage}{CONTINUED\\on next page}\else{LAST PAGE}\fi}
+\lfoot{}
+\cfoot{{\small\bfseries Page \thepage\ of \pageref{LastPage}}}
+\rfoot{}
+\renewcommand\headrulewidth{0pt} % Removes funny header line
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+\begin{center}
+{\bf Mathematics 4MB3/6MB3 Mathematical Biology\\
+\smallskip
+2018 ASSIGNMENT 2}\\
+\medskip
+\underline{\emph{Group Name}}: \texttt{{\color{blue}The Four Humours}}\\
+\medskip
+\underline{\emph{Group Members}}: {\color{blue}Claudia Tugulun, Roger Zhang, Alexei Kuzmin, Alexandra Bushby}
+\end{center}
+
+\bigskip
+
+\section{Plot P\&I mortality in Philadelphia in 1918}
+
+<<include = FALSE>>=
+datafile <- "pim_us_phila_city_1918_dy.csv"
+philadata <- read.csv(datafile)
+philadata$date <- as.Date(philadata$date)
+##install.packages("tidyverse")
+##install.packages("readr")
+##install.packages("dplyr")
+##install.packages("tidyr")
+library(tidyverse)
+library(readr)
+theme_set(theme_bw())
+library(dplyr)
+library(tidyr)
+
+gg1 <- (ggplot(philadata, aes(x=date, y = pim)) + 
+          geom_line() + 
+          geom_point(colour = "black", fill = "red", shape = 21) + 
+          labs(x = "Date", y = "P & I Deaths")
+)
+@ 
+
+
+
+<<echo=FALSE, fig.height=4, fig.width= 7 >>=
+print(gg1)
+@
+
+
+<<read.phila.data,  message = FALSE>>=
+datafile <- "pim_us_phila_city_1918_dy.csv"
+philadata <- read.csv(datafile)
+philadata$date <- as.Date(philadata$date)
+library(tidyverse)
+library(readr)
+theme_set(theme_bw())
+library(dplyr)
+library(tidyr)
+
+gg1 <- (ggplot(philadata, aes(x=date, y = pim)) + 
+          geom_line() + 
+          geom_point(colour = "black", fill = "red", shape = 21) + 
+          labs(x = "Date", y = "P & I Deaths")
+)
+@ 
+
+
+\section{Estimate $\R_0$ from the Philadelphia P\&I time series}
+
+\begin{enumerate}[(a)]
+
+\item \EstimateRna
+
+\item The graph below shows the Philadelphia 1918 mortality data, where the number of mortalities have been transformed logarithmically. We can see that there is a straight line from the end of September to the beginning of October. With trial and error, we found that the best line comes from choosing the dates to be between September 23rd and October 5th.
+
+
+<<include = FALSE>>=
+gg2 <- (ggplot(philadata, aes(x=date, y = log(pim))) + 
+          geom_line() + 
+          labs(x="Date", y="Log Transformation of P & I Deaths")
+)
+@
+
+<<Figure 2, echo=FALSE,  fig.height=4, fig.width= 7>>=
+print(gg2)
+@
+
+<<>>=
+gg2 <- (ggplot(philadata, aes(x=date, y = log(pim))) + 
+          geom_line() + 
+          labs(x="Date", y="Log Transformation of P & I Deaths")
+)
+@
+
+<<include=FALSE>>=
+philadata1<-philadata[23:35,] ##choosing the appropriate dates listed above
+coef(lm(log(pim) ~ date, data = philadata1)) ##determining the slope and intercept of the line
+gg3 <- gg2 + geom_abline(intercept = 4517.0819254, slope = 0.2410217, col = "red")
+@
+
+<<echo=FALSE, fig.height=4, fig.width= 7>>=
+print(gg3)
+@
+
+
+<<tidy.opts=list(width.cutoff = 80)>>=
+##selecting the appropriate dates 
+philadata1<-philadata[23:35,] 
+##determining the slope and intercept of the line
+coef(lm(log(pim) ~ date, data = philadata1)) 
+gg3 <- gg2 + geom_abline(intercept = 4517.0819254, slope = 0.2410217, col = "red")
+@
+  
+\item \EstimateRnc
+
+\end{enumerate}
+
+
+\section{Fit the basic SIR model to the Philadelphia P\&I time series}
+
+\begin{enumerate}[(a),start=2]
+
+\item
+
+<< message = FALSE, fig.height=4, fig.width= 7>>=
+library(deSolve)
+library(MASS)
+
+## Vector Field for SIR model
+SIR.vector.field <- function(t, vars=c(S,I,R), parms=c(R_0, gamma)) {
+  with(as.list(c(parms, vars)), {
+    dS <- -gamma*R_0*S*I # dS/dt
+    dI <- gamma*R_0*S*I - gamma*I # dI/dt
+    dR <- gamma*I #dR/dt
+    vec.fld <- c(dS=dS, dI=dI, dR=dR)
+    return(list(vec.fld))
+  })
+}
+
+## Plot solutions of the SIR model
+tmax <- 70 # end time for numerical integration of the ODE
+@
+
+
+\item The following graph shows the solutions of the SIR model for various $\R_0$ values for a given $\gamma$ value of $\frac{1}{4}$.
+
+<<echo = FALSE, message = FALSE, fig.height=4, fig.width= 7>>=
+## draw box for plot:
+plot(0,0,xlim=c(0,tmax),ylim=c(0,0.5),
+     type="n",xlab="Time (t)",ylab="Prevalence (I)",las=1)
+
+draw.soln <- function(ic=c(S=1,I=0), tmax=1,
+                      times=seq(0,tmax,by=tmax/500),
+                      func, parms, ... ) {
+  soln <- ode(ic, times, func, parms)
+  lines(times, soln[,"I"], col=Rep_nums[i], lwd=3,... )
+}
+
+## Initial conditions:
+I0 <- 0.001
+S0 <- 1 - I0
+R0 <- 1 - I0 - S0
+
+## Draw solutions for several values of parameter R_0:
+Rep_nums <- c(1.2,1.5,1.8,2,3,4)
+gamma <- 1/4
+for (i in 1:length(Rep_nums)) {
+  draw.soln(ic=c(S=S0,I=I0,R=R0), tmax=tmax,
+            func=SIR.vector.field,
+            parms=c(R_0=Rep_nums[i], gamma),
+            lty=i #Different line style for each solution
+  )
+}
+##Legend for R_0:
+legend("topright",legend=Rep_nums,col=Rep_nums,lty=1:6, title = expression(paste(italic("Ro"))))
+
+##Legend for gamma:
+
+text(3, 0.45, expression(gamma == frac(1,4)))
+@
+
+<<eval=FALSE, message = FALSE, fig.height=4, fig.width= 7>>=
+## draw box for plot:
+plot(0,0,xlim=c(0,tmax),ylim=c(0,1),
+     type="n",xlab="Time (t)",ylab="Prevalence (I)",las=1)
+
+draw.soln <- function(ic=c(S=1,I=0), tmax=1,
+                      times=seq(0,tmax,by=tmax/500),
+                      func, parms, ... ) {
+  soln <- ode(ic, times, func, parms)
+  lines(times, soln[,"I"], col=Rep_nums[i], lwd=3,... )
+}
+
+## Initial conditions:
+I0 <- 0.001
+S0 <- 1 - I0
+R0 <- 1 - I0 - S0
+
+## Draw solutions for several values of parameter R_0:
+Rep_nums <- c(1.2,1.5,1.8,2,3,4)
+gamma <- 1/4
+for (i in 1:length(Rep_nums)) {
+  draw.soln(ic=c(S=S0,I=I0,R=R0), tmax=tmax,
+            func=SIR.vector.field,
+            parms=c(R_0=Rep_nums[i], gamma),
+            lty=i #Different line style for each solution
+  )
+}
+##Legend for R_0:
+legend("topright",legend=Rep_nums,col=Rep_nums,lty=1:6, 
+       title = expression(paste(italic("Ro"))))
+
+##Legend for gamma:
+text(3, 0.45, expression(gamma == frac(1,4)))
+@
+
+\item The following graph shows that taking the logarithmic transformation of the solution to the SIR model, when $\gamma = \frac{1}{4.1}$ and $\R_0 = 2.1$, fits the logarithmic transformation of the 1918 mortality data. We make the assumption that individuals who are infected react uniformly to the infectious disease. Thus, any period of exponential increase/decrease of infection would translate to periods of exponential increase/decrease of mortality.
+
+<<echo = FALSE, message = FALSE, fig.height=4, fig.width= 7>>=
+## Vector Field for SIR model
+SIR.vector.field <- function(t, vars=c(S,I,R), parms=c(R_0,gamma)) {
+  with(as.list(c(parms, vars)), {
+    dS <- -gamma*R_0*S*I # dS/dt
+    dI <- gamma*R_0*S*I - gamma*I # dI/dt
+    dR <- gamma*I #dR/dt
+    vec.fld <- c(dS=dS, dI=dI, dR=dR)
+    return(list(vec.fld)) # ode() requires a list
+  })
+}
+
+## Plot solutions of the SIR model
+tmax <- 70 # end time for numerical integration of the ODE
+## draw box for plot:
+plot(0,0,xlim=c(0,tmax),ylim=c(-8,0),
+     type="n",xlab="Time (t)",ylab="Log (I)",las=1)
+
+draw.soln <- function(ic=c(S=1,I=0), tmax=1,
+                      times=seq(0,tmax,by=tmax/500),
+                      func, parms, legend,... ) {
+  soln <- ode(ic, times, func, parms)
+  lines(times+14, log(soln[,"I"]), col=Rep_nums[i], lwd=3,... )
+}#translate times to point where pim data begins exponential growth
+
+##Initial conditions:
+I0 <- 0.001
+S0 <- 1 - I0
+R0 <- 1 - I0 - S0
+
+##Draw solutions for several values of parameter R_0:
+Rep_nums <- c(2.1)
+gamma <- 1/4.1
+
+for (i in 1:length(Rep_nums)) {
+  draw.soln(ic=c(S=S0,I=I0,R=R0), tmax=tmax,
+            func=SIR.vector.field,
+            parms=c(R_0=Rep_nums[i],gamma),
+            lty=i #Different line style for each solution
+  )
+}
+
+## Plots log of mortality data and translates down 8 units
+df <- read.csv("pim_us_phila_city_1918_dy.csv")
+points(df$date,log(df$pim)-8)
+@
+
+<<eval=FALSE, message = FALSE, fig.height=4, fig.width= 7>>=
+## Vector Field for SIR model
+## Vector Field for SIR model
+SIR.vector.field <- function(t, vars=c(S,I,R), parms=c(R_0,gamma)) {
+  with(as.list(c(parms, vars)), {
+    dS <- -gamma*R_0*S*I # dS/dt
+    dI <- gamma*R_0*S*I - gamma*I # dI/dt
+    dR <- gamma*I #dR/dt
+    vec.fld <- c(dS=dS, dI=dI, dR=dR)
+    return(list(vec.fld)) # ode() requires a list
+  })
+}
+
+## Plot solutions of the SIR model
+tmax <- 70 # end time for numerical integration of the ODE
+## draw box for plot:
+plot(0,0,xlim=c(0,tmax),ylim=c(-8,0),
+     type="n",xlab="Time (t)",ylab="Log (I)",las=1)
+
+draw.soln <- function(ic=c(S=1,I=0), tmax=1,
+                      times=seq(0,tmax,by=tmax/500),
+                      func, parms, legend,... ) {
+  soln <- ode(ic, times, func, parms)
+  lines(times+14, log(soln[,"I"]), col=Rep_nums[i], lwd=3,... )
+}#translate times to point where pim data begins exponential growth
+
+##Initial conditions:
+I0 <- 0.001
+S0 <- 1 - I0
+R0 <- 1 - I0 - S0
+
+##Draw solutions for several values of parameter R_0:
+Rep_nums <- c(2.1)
+gamma <- 1/4.1
+
+for (i in 1:length(Rep_nums)) {
+  draw.soln(ic=c(S=S0,I=I0,R=R0), tmax=tmax,
+            func=SIR.vector.field,
+            parms=c(R_0=Rep_nums[i],gamma),
+            lty=i #Different line style for each solution
+  )
+}
+df <- read.csv("pim_us_phila_city_1918_dy.csv")
+## Plots log of mortality data and translates down 8 units
+points(df$date,log(df$pim)-8)
+@
+
+
+\end{enumerate}
+
+
+\section{Executive summary for the Public Health Agency}
+
+To be handed in at a later date.
+
+\bigskip
+
+\centerline{\bf--- END OF ASSIGNMENT ---}
+
+\bigskip
+Compile time for this document:
+\today\ @ \thistime
+
+\end{document}

@@ -21,7 +21,7 @@ draw.soln <- function(ic=c(S=1,I=0), tmax=1,
                       func, parms,...){
   soln <- ode(ic, times, func, parms)
   lines(soln[,"S"], soln[,"I"], col=Rep_nums[i], lwd=3,... )
-}#plots prevalence
+}#plots prevalence vs. susceptibles phase diagram
 
 ## Initial conditions:
 I0 <- 0.001

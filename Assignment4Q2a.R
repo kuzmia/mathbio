@@ -27,6 +27,8 @@ for(i in 1:30){
   lines(G.SI, col=i)
 }
 N <- 32
+beta <- 1
+I0 <- 1
 It <- I0*exp(N*beta*G.SI[,1])/(1+(I0/N)*(exp(N*beta*G.SI[,1])-1))
 lines(G.SI[,1],It,lwd=3)
 
